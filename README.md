@@ -179,3 +179,4 @@ File	                   Purpose
 tests/ParserTest.php	  Unit tests for JSONLParser
 logs/app.log	          File output for all logs/errors
 phpunit.xml	              Config for running tests
+
