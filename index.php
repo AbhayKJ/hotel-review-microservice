@@ -5,35 +5,41 @@ require 'src/bootstrap.php';
 
 use App\Services\S3Service;
 use App\Helpers\JSONLParser;
-use App\Models\Review;
+use App\Repositories\ReviewRepository;
+use Monolog\Logger;
+use Monolog\Handler\StreamHandler;
 
-$command = $argv[1] ?? null;
+// Set up logger
+$logger = new Logger('app');
+$logger->pushHandler(new StreamHandler('logs/app.log', Logger::DEBUG));
 
-if ($command === 'ingest') {
-    echo "Starting ingestion...\n";
-    $s3 = new S3Service();
-    $parser = new JSONLParser();
+// Load config
+$bucket = getenv('S3_BUCKET');
+$prefix = getenv('S3_PREFIX');
 
-    $files = $s3->listFiles();
+// Set up services
+$s3 = new Aws\S3\S3Client([
+    'version' => 'latest',
+    'region' => getenv('AWS_REGION'),
+    'credentials' => [
+        'key' => getenv('AWS_ACCESS_KEY_ID'),
+        'secret' => getenv('AWS_SECRET_ACCESS_KEY'),
+    ],
+]);
 
-    foreach ($files as $file) {
-        if ($s3->isAlreadyProcessed($file)) {
-            echo "Skipping already processed: $file\n";
-            continue;
+$s3Service = new S3Service($s3, $bucket, $prefix, $logger);
+$parser = new JSONLParser($logger);
+$repository = new ReviewRepository($logger);
+
+// Process files
+$files = $s3Service->listNewFiles();
+foreach ($files as $file) {
+    $lines = $s3Service->readFile($file);
+    foreach ($lines as $line) {
+        $data = $parser->parseLine($line);
+        if ($data) {
+            $repository->save($data);
         }
-
-        $lines = $s3->readFile($file);
-        foreach ($lines as $line) {
-            $review = $parser->parseLine($line);
-            if ($review) {
-                Review::create($review);
-            }
-        }
-
-        $s3->markAsProcessed($file);
     }
-
-    echo "Ingestion complete.\n";
-} else {
-    echo "Usage: php index.php ingest\n";
+    $s3Service->markFileAsProcessed($file);
 }

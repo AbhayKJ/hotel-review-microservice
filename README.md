@@ -5,7 +5,7 @@ A PHP-based microservice that ingests hotel reviews (in .jsonl format) from an A
 
     1. Connects to AWS S3 and fetches daily review files
     2. Parses JSON Lines data with validation
-    3. Idempotent processing (skip already-processed files)
+    3. Idempotent processing
     4. Stores structured reviews in MySQL via Eloquent ORM
     5. CLI-based ingestion command: php index.php ingest
     6. Dockerized for easy deployment
@@ -58,17 +58,20 @@ A PHP-based microservice that ingests hotel reviews (in .jsonl format) from an A
 
 🧾 MySQL Schema
 
-    CREATE TABLE reviews (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      hotel_id INT,
-      platform VARCHAR(50),
-      hotel_name VARCHAR(255),
-      review_text TEXT,
-      rating FLOAT,
-      review_date DATETIME,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    );
+CREATE TABLE reviews (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    hotel_id INT NOT NULL,
+    platform VARCHAR(50) NOT NULL,
+    hotel_name VARCHAR(255),
+    rating DECIMAL(3,1),
+    review_text TEXT,
+    review_date DATETIME,
+    country VARCHAR(100),
+    language VARCHAR(10),
+    provider_id INT,
+    extended_ratings JSON,
+    UNIQUE KEY unique_review (hotel_id, review_date)
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 
 
@@ -100,8 +103,10 @@ A PHP-based microservice that ingests hotel reviews (in .jsonl format) from an A
     │   │   └── Review.php
     │   ├── Services/
     │   │   └── S3Service.php
-    │   └── Helpers/
-    │       └── JSONLParser.php
+    │   ├── Helpers/
+    │   │   └── JSONLParser.php
+    │   └── Repositories/
+    │       └── ReviewRepository.php
     ├── tests/              ← ✅ Tests go here
     │   └── ParserTest.php  ← Example test
     └── logs/
@@ -114,3 +119,63 @@ A PHP-based microservice that ingests hotel reviews (in .jsonl format) from an A
     Once inside your container:
     composer require --dev phpunit/phpunit
     ./vendor/bin/phpunit
+
+
+💡 Architecture Diagram
+
+![alt text](image.png)
+
+
+🧠 High-Level Responsibilities
+
++------------------+
+| index.php        | ← Entry point for CLI: `php index.php ingest`
++--------+---------+
+         |
+         v
++--------+---------+
+| S3Service         | ← Connects to AWS, lists .jl files, downloads line-by-line
+| (src/Services)    |
++--------+---------+
+         |
+         v
++--------+---------+      +----------------------+
+| JSONLParser       | --> | Validation / Parsing | ← Cleans each JSON line
+| (src/Helpers)     |      +----------------------+
++--------+---------+
+         |
+         v
++--------+---------+
+| ReviewRepository  | ← Handles DB interaction, ensures idempotency, handles errors
+| (src/Repositories)|
++--------+---------+
+         |
+         v
++--------+---------+
+| Eloquent Model    | ← Maps to `reviews` table in MySQL
+| (src/Models)      |
++------------------+
+
+
+
+🔁 Processing Flow
+
+index.php
+   └── calls S3Service::processReviews()
+         ├── connects to S3
+         ├── fetches files (pagination supported)
+         ├── for each .jl line:
+         │     └── JSONLParser::parse() → validates & transforms
+         │           └── ReviewRepository::saveReview()
+         │                 └── Review::create() via Eloquent ORM
+         │
+         └── Logs all events + errors (to file and console)
+
+
+
+🧪 Tests & Logging
+
+File	                   Purpose
+tests/ParserTest.php	  Unit tests for JSONLParser
+logs/app.log	          File output for all logs/errors
+phpunit.xml	              Config for running tests
