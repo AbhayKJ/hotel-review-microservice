@@ -15,34 +15,34 @@ A PHP-based microservice that ingests hotel reviews (in .jsonl format) from an A
 
 🛠️ Setup:
 
-1. Clone the Repo
-   git clone https://github.com/AbhayKJ/hotel-review-microservice.git
-   cd hotel-review-microservice
-
-2. Configure Environment
-   Create your .env from the example:
-   cp .env.example .env
-   Update it with your AWS credentials and DB settings.
-
-3. Start the Services
-   docker-compose up --build
-    This starts:
-        1. PHP CLI app
-        2. MySQL server
-
-4. Install PHP Dependencies
-   Inside the container:
-   docker exec -it php-review-app composer install
+    1. Clone the Repo
+       git clone https://github.com/AbhayKJ/hotel-review-microservice.git
+       cd hotel-review-microservice
+    
+    2. Configure Environment
+       Create your .env from the example:
+       cp .env.example .env
+       Update it with your AWS credentials and DB settings.
+    
+    3. Start the Services
+       docker-compose up --build
+        This starts:
+            1. PHP CLI app
+            2. MySQL server
+    
+    4. Install PHP Dependencies
+       Inside the container:
+       docker exec -it php-review-app composer install
 
 
 
 🧪 Running the Ingestion
 
-   docker exec -it php-review-app php index.php ingest
-    This command:
-        1. Lists S3 files
-        2. Validates & parses JSONL data
-        3. Stores valid entries in MySQL
+    docker exec -it php-review-app php index.php ingest
+      This command:
+         1. Lists S3 files
+         2. Validates & parses JSONL data
+         3. Stores valid entries in MySQL
 
 
 
@@ -58,20 +58,20 @@ A PHP-based microservice that ingests hotel reviews (in .jsonl format) from an A
 
 🧾 MySQL Schema
 
-CREATE TABLE reviews (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    hotel_id INT NOT NULL,
-    platform VARCHAR(50) NOT NULL,
-    hotel_name VARCHAR(255),
-    rating DECIMAL(3,1),
-    review_text TEXT,
-    review_date DATETIME,
-    country VARCHAR(100),
-    language VARCHAR(10),
-    provider_id INT,
-    extended_ratings JSON,
-    UNIQUE KEY unique_review (hotel_id, review_date)
-) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    CREATE TABLE reviews (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        hotel_id INT NOT NULL,
+        platform VARCHAR(50) NOT NULL,
+        hotel_name VARCHAR(255),
+        rating DECIMAL(3,1),
+        review_text TEXT,
+        review_date DATETIME,
+        country VARCHAR(100),
+        language VARCHAR(10),
+        provider_id INT,
+        extended_ratings JSON,
+        UNIQUE KEY unique_review (hotel_id, review_date)
+    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 
 
@@ -123,60 +123,60 @@ CREATE TABLE reviews (
 
 💡 Architecture Diagram
 
-![alt text](image.png)
+   ![alt text](image.png)
 
 
 🧠 High-Level Responsibilities
 
-+------------------+
-| index.php        | ← Entry point for CLI: `php index.php ingest`
-+--------+---------+
-         |
-         v
-+--------+---------+
-| S3Service         | ← Connects to AWS, lists .jl files, downloads line-by-line
-| (src/Services)    |
-+--------+---------+
-         |
-         v
-+--------+---------+      +----------------------+
-| JSONLParser       | --> | Validation / Parsing | ← Cleans each JSON line
-| (src/Helpers)     |      +----------------------+
-+--------+---------+
-         |
-         v
-+--------+---------+
-| ReviewRepository  | ← Handles DB interaction, ensures idempotency, handles errors
-| (src/Repositories)|
-+--------+---------+
-         |
-         v
-+--------+---------+
-| Eloquent Model    | ← Maps to `reviews` table in MySQL
-| (src/Models)      |
-+------------------+
+    +------------------+
+    | index.php        | ← Entry point for CLI: `php index.php ingest`
+    +--------+---------+
+             |
+             v
+    +--------+---------+
+    | S3Service         | ← Connects to AWS, lists .jl files, downloads line-by-line
+    | (src/Services)    |
+    +--------+---------+
+             |
+             v
+    +--------+---------+      +----------------------+
+    | JSONLParser       | --> | Validation / Parsing | ← Cleans each JSON line
+    | (src/Helpers)     |      +----------------------+
+    +--------+---------+
+             |
+             v
+    +--------+---------+
+    | ReviewRepository  | ← Handles DB interaction, ensures idempotency, handles errors
+    | (src/Repositories)|
+    +--------+---------+
+             |
+             v
+    +--------+---------+
+    | Eloquent Model    | ← Maps to `reviews` table in MySQL
+    | (src/Models)      |
+    +------------------+
 
 
 
 🔁 Processing Flow
 
-index.php
-   └── calls S3Service::processReviews()
-         ├── connects to S3
-         ├── fetches files (pagination supported)
-         ├── for each .jl line:
-         │     └── JSONLParser::parse() → validates & transforms
-         │           └── ReviewRepository::saveReview()
-         │                 └── Review::create() via Eloquent ORM
-         │
-         └── Logs all events + errors (to file and console)
+    index.php
+       └── calls S3Service::processReviews()
+             ├── connects to S3
+             ├── fetches files (pagination supported)
+             ├── for each .jl line:
+             │     └── JSONLParser::parse() → validates & transforms
+             │           └── ReviewRepository::saveReview()
+             │                 └── Review::create() via Eloquent ORM
+             │
+             └── Logs all events + errors (to file and console)
 
 
 
 🧪 Tests & Logging
 
-File	                   Purpose
-tests/ParserTest.php	  Unit tests for JSONLParser
-logs/app.log	          File output for all logs/errors
-phpunit.xml	              Config for running tests
+    File	                   Purpose
+    tests/ParserTest.php	  Unit tests for JSONLParser
+    logs/app.log	          File output for all logs/errors
+    phpunit.xml	              Config for running tests
 
