@@ -17,7 +17,7 @@ class JSONLParser {
             return null;
         }
 
-        if (!isset($data['hotelId'], $data['platform'], $data['comment']['rating'])) {
+        if (!isset($data['hotelId'], $data['platform'], $data['comment']['rating'], $data['comment'], $data['overallByProviders'], $data['overallByProviders'][0]['grades'])) {
             $this->logger->warning("Missing required fields: " . json_encode($data));
             return null;
         }
